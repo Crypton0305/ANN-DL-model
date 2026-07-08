@@ -14,17 +14,59 @@ Run this app with:
     streamlit run app.py
 """
 
+import os
 import numpy as np
 import streamlit as st
 from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.datasets import mnist
 from PIL import Image
 
+MODEL_PATH = "mnist_model.keras"
 
-# Step 1: Load the already-trained model
-# @st.cache_resource makes sure the model loads only once, not on every click
+
+# Step 1: Train a new model from scratch
+def train_new_model():
+    (train_images, train_labels), (test_images, test_labels) = mnist.load_data()
+
+    train_images = train_images.reshape((60000, 784)).astype("float32") / 255
+    test_images = test_images.reshape((10000, 784)).astype("float32") / 255
+
+    new_model = keras.Sequential([
+        layers.Dense(256, activation="relu", input_shape=(784,)),
+        layers.Dropout(0.2),
+        layers.Dense(128, activation="relu"),
+        layers.Dropout(0.2),
+        layers.Dense(10, activation="softmax")
+    ])
+
+    new_model.compile(
+        optimizer="adam",
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+
+    new_model.fit(
+        train_images,
+        train_labels,
+        epochs=15,
+        batch_size=128,
+        validation_split=0.1
+    )
+
+    new_model.save(MODEL_PATH)
+    return new_model
+
+
+# Step 2: Load the model, training it first if it does not exist yet
+# @st.cache_resource makes sure this runs only once, not on every click
 @st.cache_resource
 def load_trained_model():
-    return keras.models.load_model("mnist_model.keras")
+    if os.path.exists(MODEL_PATH):
+        return keras.models.load_model(MODEL_PATH)
+    else:
+        with st.spinner("No saved model found. Training a new one, this may take a few minutes..."):
+            return train_new_model()
 
 
 model = load_trained_model()
